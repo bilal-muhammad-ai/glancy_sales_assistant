@@ -1,0 +1,19 @@
+# API
+fastapi
+uvicorn[standard]
+
+# Config
+python-dotenv
+pydantic-settings
+
+# Knowledge base: crawl + chunk
+httpx
+beautifulsoup4
+lxml
+
+# Vector store + Ollama embeddings (via Chroma OllamaEmbeddingFunction)
+chromadb
+ollama
+
+# LLM (Groq) — used later for answers
+groq
