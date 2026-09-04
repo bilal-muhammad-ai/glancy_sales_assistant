@@ -33,6 +33,7 @@ def health() -> dict:
         "ollama_embed_model": settings.ollama_embed_model,
         "groq_model": settings.groq_model,
         "groq_configured": bool(settings.groq_api_key.strip()),
+        "deepgram_configured": bool(settings.deepgram_api_key.strip()),
     }
 
 

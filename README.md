@@ -7,36 +7,37 @@ Browser voice assistant powered by **Pipecat**, with answers grounded in the
 
 | Layer | Choice |
 |--------|--------|
-| Voice pipeline | Pipecat (later) |
-| Transport | Daily / WebRTC (later) |
-| STT / TTS | Deepgram / Cartesia (later) |
+| Voice pipeline | Pipecat |
+| Transport | SmallWebRTC (local browser) |
+| STT / TTS | Deepgram Nova / Aura |
 | LLM | Groq |
-| Embeddings | **Ollama** `nomic-embed-text` (local) |
+| Embeddings | Ollama `nomic-embed-text` (local) |
 | Vector DB | Chroma (local retriever) |
 | API | FastAPI |
-| Frontend | React (later) |
+| Frontend | Pipecat runner client (custom React later) |
 
 ## Directory layout
 
 ```
-bot/           # Prompts, Q&A, Pipecat tools
+bot/           # Voice bot, prompts, Q&A, RAG tool
 kb/            # Website crawl, chunk, embed, Chroma retrieve
 api/           # FastAPI: /health, /ingest, /search, /ask
-frontend/      # Browser mic / speaker UI
+frontend/      # Custom browser UI (later)
 data/chroma/   # Local Chroma persistence
 ```
 
 ## Prerequisites
 
 1. Python 3.11+
-2. [Ollama](https://ollama.com/) running locally
-3. Embedding model pulled:
+2. [Ollama](https://ollama.com/) running locally with embeddings:
 
 ```bash
 ollama pull nomic-embed-text
 ```
 
-4. A **Groq API key** for text Q&A (`GROQ_API_KEY` in `.env`)
+3. API keys in `.env`:
+   - `GROQ_API_KEY` — text Q&A and voice LLM
+   - `DEEPGRAM_API_KEY` — voice STT + TTS
 
 ## Setup
 
@@ -46,36 +47,29 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env and set GROQ_API_KEY
+# Edit .env: set GROQ_API_KEY and DEEPGRAM_API_KEY
 ```
 
-## Ingest the website (~253 pages from sitemap)
+> If `pip` fails due to a local proxy, install with:  
+> `HTTP_PROXY= HTTPS_PROXY= pip install -r requirements.txt`
+
+## Ingest the website
 
 ```bash
 source .venv/bin/activate
 python -m kb.ingest
 ```
 
-This crawls `SITE_BASE_URL`, chunks pages, embeds with Ollama, and rebuilds the Chroma collection.
-
-## API
+## Text API
 
 ```bash
 uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-- `GET /health` — config check
-- `POST /ingest` — full re-crawl and reindex
-- `GET /search?q=showrooms&k=5` — Chroma similarity search
-- `POST /ask` — text Q&A (Chroma retrieve + Groq)
-
-### Search
-
-```bash
-curl "http://127.0.0.1:8000/search?q=Manchester%20showroom"
-```
-
-### Ask (RAG)
+- `GET /health`
+- `POST /ingest`
+- `GET /search?q=showrooms&k=5`
+- `POST /ask` — Chroma retrieve + Groq
 
 ```bash
 curl -X POST http://127.0.0.1:8000/ask \
@@ -83,13 +77,27 @@ curl -X POST http://127.0.0.1:8000/ask \
   -d '{"question":"Where is the Manchester showroom?","k":5}'
 ```
 
-Returns `answer` plus `sources` (URLs from the knowledge base).
+## Voice bot (Pipecat)
 
-## Knowledge-base / Q&A flow
+Requires ingested Chroma data, Ollama for query embeddings, plus Groq + Deepgram keys.
 
-1. Load URLs from `sitemap.xml` (+ BFS for any extras)
-2. Fetch HTML, extract main text
-3. Chunk (~500 words, 100 overlap)
-4. Embed with Ollama `nomic-embed-text`
-5. Store / retrieve via Chroma (`retrieve` / `GET /search`)
-6. `POST /ask` retrieves chunks, then Groq answers from that context only
+```bash
+source .venv/bin/activate
+python -m bot.main
+```
+
+Then open the Pipecat client (typically **http://localhost:7860/client**), allow the microphone, and talk.
+
+The bot greets you, uses Deepgram for speech in/out, Groq for replies, and calls `search_site_kb` (Chroma) for factual Glancy Fawcett questions.
+
+If the runner expects an explicit transport flag:
+
+```bash
+python -m bot.main -t webrtc
+```
+
+## Knowledge-base / voice flow
+
+1. Crawl + chunk website → Chroma (Ollama embeddings)
+2. Text: `POST /ask` retrieves then generates with Groq
+3. Voice: mic → Deepgram STT → Groq (+ optional `search_site_kb`) → Deepgram TTS → speaker

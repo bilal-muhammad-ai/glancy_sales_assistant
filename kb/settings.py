@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
 
+    deepgram_api_key: str = ""
+    deepgram_tts_voice: str = "aura-2-thalia-en"
+
 
 @lru_cache
 def get_settings() -> Settings:

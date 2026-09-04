@@ -8,6 +8,7 @@ from typing import Any
 from groq import Groq
 
 from bot.prompts import SYSTEM_PROMPT
+from bot.tools.search_kb import DEFAULT_K, MAX_CHARS_PER_HIT, format_hits
 from kb.chroma_store import retrieve
 from kb.settings import get_settings
 
