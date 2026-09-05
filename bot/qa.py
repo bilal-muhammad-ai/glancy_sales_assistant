@@ -21,16 +21,7 @@ class GroqNotConfiguredError(RuntimeError):
 
 def build_context(hits: list[dict[str, Any]]) -> str:
     """Format retrieved chunks into a single context block."""
-    if not hits:
-        return "No relevant documents found."
-
-    parts: list[str] = []
-    for hit in hits:
-        title = hit.get("title") or "Untitled"
-        url = hit.get("url") or ""
-        text = hit.get("text") or ""
-        parts.append(f"Source: {title}\nURL: {url}\n{text}")
-    return "\n\n---\n\n".join(parts)
+    return format_hits(hits, max_chars=MAX_CHARS_PER_HIT)
 
 
 def build_sources(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -54,7 +45,7 @@ def build_sources(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(best.values())
 
 
-def ask(question: str, k: int = 5) -> dict[str, Any]:
+def ask(question: str, k: int = DEFAULT_K) -> dict[str, Any]:
     """Retrieve site chunks, ask Groq, return answer + sources."""
     settings = get_settings()
     if not settings.groq_api_key.strip():
@@ -78,7 +69,7 @@ def ask(question: str, k: int = 5) -> dict[str, Any]:
             {"role": "user", "content": user_content},
         ],
         temperature=0.2,
-        max_tokens=2048,
+        max_tokens=1024,
     )
 
     answer = (completion.choices[0].message.content or "").strip()

@@ -20,7 +20,7 @@ app = FastAPI(title="Glancy KB API", version="0.1.0")
 
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=1)
-    k: int = Field(5, ge=1, le=20)
+    k: int = Field(2, ge=1, le=10)
 
 
 @app.get("/health")

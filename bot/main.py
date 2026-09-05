@@ -16,7 +16,17 @@ if str(ROOT) not in sys.path:
 load_dotenv(ROOT / ".env", override=True)
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import (
+    ErrorFrame,
+    Frame,
+    FunctionCallResultFrame,
+    LLMContextFrame,
+    LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
+    LLMRunFrame,
+    TextFrame,
+    TranscriptionFrame,
+)
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker, ProcessorUnusablePolicy
 from pipecat.processors.aggregators.llm_context import LLMContext
@@ -24,6 +34,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
 from pipecat.services.deepgram.stt import DeepgramSTTService
@@ -32,9 +43,121 @@ from pipecat.services.groq.llm import GroqLLMService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.workers.runner import WorkerRunner
 
+from bot.context_trim import ContextTrimProcessor
+from bot.debug_log import dbg
 from bot.prompts import VOICE_SYSTEM_PROMPT
 from bot.tools.search_kb import search_site_kb
 from kb.settings import get_settings
+
+
+# #region agent log
+class DebugProbeProcessor(FrameProcessor):
+    """Log key LLM/tool/error frames without changing pipeline behavior."""
+
+    def __init__(self, name: str, **kwargs):
+        super().__init__(**kwargs)
+        self._probe = name
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, ErrorFrame):
+            err = getattr(frame, "error", None) or str(frame)
+            dbg(
+                "A",
+                f"main.py:{self._probe}",
+                "error_frame",
+                {
+                    "direction": str(direction),
+                    "error": str(err)[:500],
+                    "fatal": bool(getattr(frame, "fatal", False)),
+                    "runId": "post-fix",
+                },
+            )
+        elif isinstance(frame, TranscriptionFrame):
+            text = getattr(frame, "text", "") or ""
+            dbg(
+                "F",
+                f"main.py:{self._probe}",
+                "transcription",
+                {
+                    "direction": str(direction),
+                    "chars": len(text),
+                    "preview": text[:120],
+                    "runId": "post-fix",
+                },
+            )
+        elif isinstance(frame, LLMContextFrame):
+            msgs = frame.context.get_messages() if getattr(frame, "context", None) else []
+            roles = [
+                (m.get("role") if isinstance(m, dict) else type(m).__name__) for m in msgs
+            ]
+            dbg(
+                "C",
+                f"main.py:{self._probe}",
+                "llm_context_frame",
+                {
+                    "direction": str(direction),
+                    "n": len(msgs),
+                    "roles": roles,
+                    "has_user": any(r == "user" for r in roles),
+                    "stubbed_tools": sum(
+                        1
+                        for m in msgs
+                        if isinstance(m, dict)
+                        and m.get("role") == "tool"
+                        and str(m.get("content") or "").startswith("[Earlier knowledge-base")
+                    ),
+                    "runId": "post-fix",
+                },
+            )
+        elif isinstance(frame, FunctionCallResultFrame):
+            result = getattr(frame, "result", None)
+            dbg(
+                "C",
+                f"main.py:{self._probe}",
+                "function_call_result",
+                {
+                    "direction": str(direction),
+                    "name": getattr(frame, "function_name", None),
+                    "result_type": type(result).__name__,
+                    "result_chars": len(str(result)) if result is not None else 0,
+                    "runId": "post-fix",
+                },
+            )
+        elif isinstance(frame, LLMFullResponseStartFrame):
+            dbg(
+                "E",
+                f"main.py:{self._probe}",
+                "llm_response_start",
+                {"direction": str(direction), "runId": "post-fix"},
+            )
+        elif isinstance(frame, LLMFullResponseEndFrame):
+            dbg(
+                "E",
+                f"main.py:{self._probe}",
+                "llm_response_end",
+                {"direction": str(direction), "runId": "post-fix"},
+            )
+        elif isinstance(frame, TextFrame):
+            # Skip transcription subclasses already logged above.
+            if not isinstance(frame, TranscriptionFrame):
+                text = getattr(frame, "text", "") or ""
+                if text.strip():
+                    dbg(
+                        "E",
+                        f"main.py:{self._probe}",
+                        "text_frame",
+                        {
+                            "direction": str(direction),
+                            "chars": len(text),
+                            "preview": text[:80],
+                            "runId": "post-fix",
+                        },
+                    )
+        await self.push_frame(frame, direction)
+
+
+# #endregion
 
 transport_params = {
     "webrtc": lambda: TransportParams(
@@ -76,6 +199,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         settings=GroqLLMService.Settings(
             model=settings.groq_model,
             system_instruction=VOICE_SYSTEM_PROMPT,
+            max_tokens=512,
         ),
     )
 
@@ -92,12 +216,44 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
         user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer()),
     )
 
+    # #region agent log
+    @user_aggregator.event_handler("on_user_turn_stopped")
+    async def _dbg_user_turn_stopped(aggregator, strategy, message):
+        content = getattr(message, "content", None)
+        dbg(
+            "F",
+            "main.py:user_turn_stopped",
+            "user_turn_stopped",
+            {
+                "strategy": str(strategy),
+                "content_chars": len(content or ""),
+                "content_preview": (content or "")[:120],
+                "runId": "post-fix",
+            },
+        )
+
+    @user_aggregator.event_handler("on_user_turn_inference_triggered")
+    async def _dbg_user_inference(aggregator, strategy):
+        dbg(
+            "F",
+            "main.py:user_inference",
+            "user_inference_triggered",
+            {"strategy": str(strategy), "runId": "post-fix"},
+        )
+
+    # #endregion
+
     pipeline = Pipeline(
         [
             transport.input(),
             stt,
+            DebugProbeProcessor("post_stt"),
             user_aggregator,
+            ContextTrimProcessor(context),  # user -> LLM
+            DebugProbeProcessor("pre_llm"),
             llm,
+            DebugProbeProcessor("post_llm"),
+            ContextTrimProcessor(context),  # tool-result -> LLM (upstream)
             tts,
             transport.output(),
             assistant_aggregator,
