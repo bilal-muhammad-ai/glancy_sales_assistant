@@ -1,0 +1,159 @@
+:root {
+  --bg-top: #1a2332;
+  --bg-bottom: #0e141c;
+  --ink: #f3efe6;
+  --muted: #b7c0cc;
+  --accent: #c4a574;
+  --accent-ink: #1a1520;
+  --line: rgba(243, 239, 230, 0.16);
+  --error: #e8a0a0;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Source Sans 3", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, #2c3d55 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+}
+
+.page {
+  width: min(40rem, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 4.5rem 0 3rem;
+}
+
+.hero {
+  text-align: center;
+}
+
+.brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 8vw, 4.25rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.headline {
+  margin: 0.75rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.subhead {
+  margin: 0.85rem auto 0;
+  max-width: 28rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.controls {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cta {
+  appearance: none;
+  border: 0;
+  border-radius: 0.15rem;
+  padding: 0.85rem 1.75rem;
+  min-width: 10rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cta:not(:disabled):hover {
+  filter: brightness(1.05);
+}
+
+.status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.status span {
+  color: var(--ink);
+  text-transform: capitalize;
+}
+
+.error {
+  margin: 1rem auto 0;
+  max-width: 28rem;
+  color: var(--error);
+  font-size: 0.95rem;
+}
+
+.transcript {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.transcript h2 {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+.transcript .empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.transcript ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.transcript li {
+  display: grid;
+  gap: 0.2rem;
+  line-height: 1.4;
+}
+
+.transcript strong {
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.transcript .user strong {
+  color: var(--muted);
+}
