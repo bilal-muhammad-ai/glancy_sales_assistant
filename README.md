@@ -14,7 +14,7 @@ Browser voice assistant powered by **Pipecat**, with answers grounded in the
 | Embeddings | Ollama `nomic-embed-text` (local) |
 | Vector DB | Chroma (local retriever) |
 | API | FastAPI |
-| Frontend | Pipecat runner client (custom React later) |
+| Frontend | React + Vite (`frontend/`) |
 
 ## Directory layout
 
@@ -22,20 +22,21 @@ Browser voice assistant powered by **Pipecat**, with answers grounded in the
 bot/           # Voice bot, prompts, Q&A, RAG tool
 kb/            # Website crawl, chunk, embed, Chroma retrieve
 api/           # FastAPI: /health, /ingest, /search, /ask
-frontend/      # Custom browser UI (later)
+frontend/      # React voice UI (Connect / transcript)
 data/chroma/   # Local Chroma persistence
 ```
 
 ## Prerequisites
 
 1. Python 3.11+
-2. [Ollama](https://ollama.com/) running locally with embeddings:
+2. Node.js 18+
+3. [Ollama](https://ollama.com/) running locally with embeddings:
 
 ```bash
 ollama pull nomic-embed-text
 ```
 
-3. API keys in `.env`:
+4. API keys in `.env`:
    - `GROQ_API_KEY` — text Q&A and voice LLM
    - `DEEPGRAM_API_KEY` — voice STT + TTS
 
@@ -48,6 +49,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 # Edit .env: set GROQ_API_KEY and DEEPGRAM_API_KEY
+
+cd frontend
+npm install
+cp .env.example .env
 ```
 
 > If `pip` fails due to a local proxy, install with:  
@@ -77,27 +82,31 @@ curl -X POST http://127.0.0.1:8000/ask \
   -d '{"question":"Where is the Manchester showroom?","k":5}'
 ```
 
-## Voice bot (Pipecat)
+## Voice bot + browser UI
 
 Requires ingested Chroma data, Ollama for query embeddings, plus Groq + Deepgram keys.
+
+**Terminal 1 — bot**
 
 ```bash
 source .venv/bin/activate
 python -m bot.main
+# or: python -m bot.main -t webrtc
 ```
 
-Then open the Pipecat client (typically **http://localhost:7860/client**), allow the microphone, and talk.
-
-The bot greets you, uses Deepgram for speech in/out, Groq for replies, and calls `search_site_kb` (Chroma) for factual Glancy Fawcett questions.
-
-If the runner expects an explicit transport flag:
+**Terminal 2 — frontend**
 
 ```bash
-python -m bot.main -t webrtc
+cd frontend
+npm run dev
 ```
+
+Open **http://localhost:5173**, click **Connect**, allow the microphone, and talk.
+
+The Vite app proxies `/api` to the bot at `http://localhost:7860` (signaling at `/api/offer`). You can still use the built-in Pipecat client at `http://localhost:7860/client` if needed.
 
 ## Knowledge-base / voice flow
 
 1. Crawl + chunk website → Chroma (Ollama embeddings)
 2. Text: `POST /ask` retrieves then generates with Groq
-3. Voice: mic → Deepgram STT → Groq (+ optional `search_site_kb`) → Deepgram TTS → speaker
+3. Voice: browser → SmallWebRTC → Deepgram STT → Groq (+ `search_site_kb`) → Deepgram TTS → speaker
