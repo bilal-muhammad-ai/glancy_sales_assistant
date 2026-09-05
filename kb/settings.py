@@ -31,7 +31,10 @@ class Settings(BaseSettings):
     chunk_overlap_tokens: int = 100
 
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
+
+    deepgram_api_key: str = ""
+    deepgram_tts_voice: str = "aura-2-thalia-en"
 
 
 @lru_cache

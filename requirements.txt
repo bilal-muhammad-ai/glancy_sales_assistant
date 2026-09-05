@@ -14,6 +14,8 @@ lxml
 # Vector store + Ollama embeddings (via Chroma OllamaEmbeddingFunction)
 chromadb
 ollama
-
-# LLM (Groq) — used later for answers
+# LLM (text Q&A)
 groq
+
+# Voice bot (Pipecat + browser WebRTC + Deepgram + Groq + Silero VAD)
+pipecat-ai[webrtc,deepgram,groq,silero,runner]>=1.8.0
