@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 load_dotenv(ROOT / ".env", override=True)
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.frames.frames import (
     ErrorFrame,
     Frame,
@@ -211,9 +212,11 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     )
 
     context = LLMContext(tools=[search_site_kb])
+    # Longer stop_secs reduces mid-phrase turn cuts that trigger early LLM/tool runs.
+    vad = SileroVADAnalyzer(params=VADParams(stop_secs=0.7, start_secs=0.2))
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
-        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer()),
+        user_params=LLMUserAggregatorParams(vad_analyzer=vad),
     )
 
     # #region agent log
